@@ -1,3 +1,4 @@
 test_detection/
 test_project/build-*/
+build-test-*/
 *.sh
