@@ -1,0 +1,48 @@
+Microsoft DirectX 8 SDK Files
+==============================
+
+The following files are Copyright (C) Microsoft Corporation:
+
+HEADERS:
+  - d3d8.h
+  - d3d8caps.h
+  - d3d8types.h
+  - d3dx8.h
+  - d3dx8core.h
+  - d3dx8effect.h
+  - d3dx8math.h
+  - d3dx8math.inl
+  - d3dx8mesh.h
+  - d3dx8shape.h
+  - d3dx8tex.h
+  - dinput.h
+  - dxfile.h
+  - extra/ddraw.h
+
+LIBRARIES (.lib files):
+  - d3d8.lib
+  - d3dx8.lib
+  - dinput8.lib
+  - dxguid.lib
+
+LICENSE STATUS:
+These files were originally distributed as part of the Microsoft DirectX 8
+SDK, which was freely redistributable for development purposes. The headers
+define the public API interface for DirectX 8.
+
+Microsoft retains copyright on these files. They are included in this
+repository for compatibility and development purposes only.
+
+REDISTRIBUTION:
+These files may be redistributed as part of development tools and SDKs.
+They are provided "as is" without warranty of any kind.
+
+USAGE:
+These headers and libraries are used to build applications that use the
+DirectX 8 API on Windows. They do not contain proprietary Microsoft code
+beyond the necessary API definitions and import library stubs.
+
+---
+
+For questions about Microsoft DirectX licensing, refer to Microsoft's
+official documentation and licensing terms.

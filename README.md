@@ -79,5 +79,24 @@ cmake --build .
 
 ## License
 
-Headers and documentation provided for compatibility purposes.
+This repository contains two types of files with different licenses:
+
+### GPL3 Licensed (Our Contributions)
+- Build configuration (CMakeLists.txt)
+- Documentation (docs/, README.md, STYLE.md)
+- Research materials (research/, extracted/)
+- Test applications (test_project/)
+- Configuration files (.editorconfig, .gitignore)
+
+See [LICENSE-GPL3.txt](LICENSE-GPL3.txt) for details.
+
+### Microsoft Copyright (DirectX 8 SDK Files)
+- DirectX 8 headers (d3d8.h, d3dx8.h, dinput.h, etc.)
+- Import libraries (d3d8.lib, d3dx8.lib, dinput8.lib, dxguid.lib)
+- Originally distributed with Microsoft DirectX 8 SDK
+
+See [LICENSE-MICROSOFT.txt](LICENSE-MICROSOFT.txt) for details.
+
+These files define the public DirectX 8 API and are provided for
+compatibility and development purposes.
 Not endorsed or approved by Microsoft or EA. Use at your own risk.
