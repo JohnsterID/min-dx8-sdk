@@ -130,7 +130,7 @@ jobs:
         shell: cmd
         continue-on-error: true
         run: |
-          cd test-binaries
+          cd test-binaries\build-test-i686
           echo === Running test_d3d8.exe (32-bit) ===
           test_d3d8.exe
           echo Exit code: %ERRORLEVEL%
@@ -139,7 +139,7 @@ jobs:
         if: matrix.arch == 'x86_64'
         shell: cmd
         run: |
-          cd test-binaries
+          cd test-binaries\build-test-d3d8thk
           
           echo ============================================
           echo Running d3d8thk test suite (cross-compiled)
@@ -170,7 +170,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cross-compiled-test-results
-          path: test-binaries/*_cross.txt
+          path: test-binaries/build-test-d3d8thk/*_cross.txt
           retention-days: 30
   
   # Native Windows testing
