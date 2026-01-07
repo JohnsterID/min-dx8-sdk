@@ -54,16 +54,16 @@ jobs:
       - name: Verify test executable
         run: |
           cd build-test-${{ matrix.arch }}
-          ls -lh main.exe
+          ls -lh test_d3d8.exe
           
           echo "=== Checking PE format ==="
-          file main.exe
+          file test_d3d8.exe
           
           echo "=== Checking DLL dependencies ==="
-          ${{ matrix.arch }}-w64-mingw32-objdump -p main.exe | grep "DLL Name" || true
+          ${{ matrix.arch }}-w64-mingw32-objdump -p test_d3d8.exe | grep "DLL Name" || true
           
           echo "=== Checking D3D8 symbols ==="
-          ${{ matrix.arch }}-w64-mingw32-nm main.exe | grep -i direct3d || echo "Symbol check: OK"
+          ${{ matrix.arch }}-w64-mingw32-nm test_d3d8.exe | grep -i direct3d || echo "Symbol check: OK"
       
       - name: Build d3d8thk tests (64-bit only)
         if: matrix.arch == 'x86_64'
@@ -96,7 +96,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-executables-${{ matrix.arch }}
-          path: build-test-${{ matrix.arch }}/main.exe
+          path: build-test-${{ matrix.arch }}/test_d3d8.exe
           retention-days: 7
       
       - name: Upload test executables (64-bit)
@@ -105,7 +105,7 @@ jobs:
         with:
           name: test-executables-${{ matrix.arch }}
           path: |
-            build-test-${{ matrix.arch }}/main.exe
+            build-test-${{ matrix.arch }}/test_d3d8.exe
             build-test-d3d8thk/*.exe
           retention-days: 7
   
@@ -137,8 +137,8 @@ jobs:
         continue-on-error: true
         run: |
           cd test-binaries
-          echo === Running main.exe (${{ matrix.arch }}) ===
-          main.exe
+          echo === Running test_d3d8.exe (${{ matrix.arch }}) ===
+          test_d3d8.exe
           echo Exit code: %ERRORLEVEL%
       
       - name: Test d3d8thk suite (64-bit only)
