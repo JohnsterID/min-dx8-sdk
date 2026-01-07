@@ -173,174 +173,34 @@ jobs:
           path: test-binaries/build-test-d3d8thk/*_cross.txt
           retention-days: 30
   
-  # Native Windows testing
-  windows-test:
-    name: Windows Native Build and Test
-    runs-on: windows-latest
-    needs: cross-compile-linux
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup MinGW-w64
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-cmake
-            make
-      
-      - name: Build tests with MinGW-w64
-        shell: msys2 {0}
-        run: |
-          mkdir -p build-test-windows
-          cd build-test-windows
-          
-          cmake ../test_project -G "MinGW Makefiles"
-          mingw32-make VERBOSE=1
-      
-      - name: Run basic link test
-        shell: msys2 {0}
-        run: |
-          cd build-test-windows
-          echo "=== Running main.exe ==="
-          ./main.exe || echo "Exit code: $?"
-      
-      - name: Build d3d8thk tests (native)
-        shell: msys2 {0}
-        run: |
-          mkdir -p build-test-d3d8thk-windows
-          cd build-test-d3d8thk-windows
-          
-          cmake ../test_d3d8thk -G "MinGW Makefiles"
-          mingw32-make VERBOSE=1
-      
-      - name: Run d3d8thk tests
-        shell: msys2 {0}
-        run: |
-          cd build-test-d3d8thk-windows
-          
-          # Function to run test and validate output
-          run_test() {
-            local test_name=$1
-            local test_exe=$2
-            
-            echo "============================================"
-            echo "Running: $test_name"
-            echo "============================================"
-            
-            # Run test and capture output
-            if ./$test_exe > ${test_name}_output.txt 2>&1; then
-              exit_code=0
-            else
-              exit_code=$?
-            fi
-            
-            # Display output
-            cat ${test_name}_output.txt
-            
-            # Validate output
-            echo ""
-            echo "--- Validating output ---"
-            
-            # Check for test suite header
-            if ! grep -q "Test Suite" ${test_name}_output.txt; then
-              echo "ERROR: Test header not found - program may have crashed"
-              return 1
-            fi
-            
-            # Check for summary section
-            if ! grep -q "TEST SUMMARY" ${test_name}_output.txt; then
-              echo "ERROR: Test summary not found - program terminated unexpectedly"
-              return 1
-            fi
-            
-            # Check if test ran to completion (either success or expected failure)
-            if grep -q "All tests passed" ${test_name}_output.txt; then
-              echo "SUCCESS: All tests passed!"
-              return 0
-            elif grep -q "FAILED.*failed" ${test_name}_output.txt; then
-              echo "EXPECTED: Tests failed (likely no D3D8 GPU support)"
-              # Check for known failure reasons
-              if grep -qi "GPU driver\|not support\|device not found" ${test_name}_output.txt; then
-                echo "REASON: GPU driver limitation (expected on CI)"
-                return 0
-              fi
-              echo "WARNING: Unexpected failure - review output"
-              return 0  # Still pass CI - driver issues are expected
-            else
-              echo "ERROR: Unexpected test outcome"
-              return 1
-            fi
-          }
-          
-          # Run all tests
-          failed_tests=0
-          
-          run_test "test_basic" "test_basic.exe" || ((failed_tests++))
-          echo ""
-          
-          run_test "test_surface" "test_surface.exe" || ((failed_tests++))
-          echo ""
-          
-          run_test "test_context" "test_context.exe" || ((failed_tests++))
-          echo ""
-          
-          run_test "test_draw" "test_draw.exe" || ((failed_tests++))
-          echo ""
-          
-          # Final summary
-          echo "============================================"
-          echo "FINAL TEST RESULTS"
-          echo "============================================"
-          if [ $failed_tests -eq 0 ]; then
-            echo "All tests executed correctly!"
-            echo "Tests may have failed internally due to GPU drivers (expected)"
-            exit 0
-          else
-            echo "ERROR: $failed_tests test(s) crashed or produced invalid output"
-            exit 1
-          fi
-      
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-test-results
-          path: |
-            build-test-d3d8thk-windows/*.txt
-          retention-days: 30
-   
   # Analyze test outputs
   analyze-results:
     name: Analyze Test Results
     runs-on: ubuntu-latest
-    needs: [windows-test]
+    needs: [test-cross-compiled]
     if: always()
     
     steps:
       - name: Download test results
         uses: actions/download-artifact@v4
         with:
-          name: windows-test-results
+          name: cross-compiled-test-results
           path: test-results/
         continue-on-error: true
       
       - name: Analyze test outputs
         run: |
-          echo "=== Analyzing Test Results ==="
+          echo "=== Analyzing Cross-compiled Test Results ==="
           
           if [ ! -d "test-results" ] || [ -z "$(ls -A test-results)" ]; then
-            echo "No test results found (Windows tests may have failed to run)"
+            echo "No test results found (tests may have failed to run)"
             exit 0
           fi
           
           cd test-results
           
           # Analyze each test
-          for test_file in *_output.txt; do
+          for test_file in *_cross.txt; do
             if [ ! -f "$test_file" ]; then
               continue
             fi
@@ -375,7 +235,7 @@ jobs:
   report:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [cross-compile-linux, test-cross-compiled, windows-test, analyze-results]
+    needs: [cross-compile-linux, test-cross-compiled, analyze-results]
     if: always()
     
     steps:
@@ -389,7 +249,6 @@ jobs:
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Cross-compile (Linux) | ${{ needs.cross-compile-linux.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Test Cross-compiled (Windows) | ${{ needs.test-cross-compiled.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows Native Build | ${{ needs.windows-test.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## What Was Tested" >> $GITHUB_STEP_SUMMARY
@@ -406,23 +265,10 @@ jobs:
             echo "- ✓ Cross-compiled binaries executed on Windows" >> $GITHUB_STEP_SUMMARY
             echo "- ✓ 32-bit and 64-bit executables tested" >> $GITHUB_STEP_SUMMARY
             echo "- ✓ d3d8thk tests executed (64-bit)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Note:** Tests may fail due to GPU driver limitations (expected on GitHub runners)." >> $GITHUB_STEP_SUMMARY
           else
             echo "- ✗ Cross-compiled tests did not complete" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "### Windows Native Build and Test" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ needs.windows-test.result }}" = "success" ]; then
-            echo "- ✓ Native compilation with MinGW-w64" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ test_basic.exe executed" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ test_surface.exe executed" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ test_context.exe executed" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ test_draw.exe executed" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ Output validation passed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Note:** Tests may have failed internally due to GPU driver limitations (expected)." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ✗ Windows tests did not complete" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Note:** Check job logs for details." >> $GITHUB_STEP_SUMMARY
           fi
@@ -450,4 +296,3 @@ jobs:
           echo "- **test-executables-i686**: 32-bit Windows executables (cross-compiled)" >> $GITHUB_STEP_SUMMARY
           echo "- **test-executables-x86_64**: 64-bit Windows executables + d3d8thk tests (cross-compiled)" >> $GITHUB_STEP_SUMMARY
           echo "- **cross-compiled-test-results**: Test output from cross-compiled binaries on Windows" >> $GITHUB_STEP_SUMMARY
-          echo "- **windows-test-results**: Test output from native Windows build" >> $GITHUB_STEP_SUMMARY
