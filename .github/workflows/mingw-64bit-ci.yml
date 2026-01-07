@@ -90,43 +90,7 @@ jobs:
           echo "=== Verifying d3d8thk dependency ==="
           x86_64-w64-mingw32-objdump -p test_basic.exe | grep -i "d3d8thk.dll"
       
-      - name: Test with Wine (validation only - expected to fail)
-        if: matrix.arch == 'x86_64'
-        continue-on-error: true
-        run: |
-          # Install Wine
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          sudo apt-get install -y wine64
-          
-          cd build-test-d3d8thk
-          
-          echo "=== Testing executable validity with Wine ==="
-          echo "NOTE: These will fail (Wine doesn't implement OsThunk*)"
-          echo "We're just checking that executables are valid PE binaries"
-          echo ""
-          
-          # Test that Wine can at least load the executable
-          echo "Testing test_basic.exe..."
-          if wine64 test_basic.exe 2>&1 | tee wine_output.txt; then
-            echo "Unexpectedly succeeded!"
-          else
-            exit_code=$?
-            echo "Exit code: $exit_code"
-            
-            # Check for expected error (missing d3d8thk.dll or function not found)
-            if grep -qi "d3d8thk\|could not load\|not found" wine_output.txt; then
-              echo "EXPECTED: Wine cannot load d3d8thk.dll"
-            elif grep -qi "unimplemented\|stub" wine_output.txt; then
-              echo "EXPECTED: Wine has stubs but no implementation"
-            else
-              echo "UNEXPECTED: Different error - review output above"
-            fi
-          fi
-          
-          echo ""
-          echo "Wine test complete (failures are expected)"
-      
+
       - name: Upload test executables
         uses: actions/upload-artifact@v4
         with:
@@ -136,9 +100,79 @@ jobs:
             build-test-d3d8thk/*.exe
           retention-days: 7
   
+  # Test cross-compiled executables on Windows
+  test-cross-compiled:
+    name: Test Cross-compiled Executables (Windows)
+    runs-on: windows-latest
+    needs: cross-compile-linux
+    
+    strategy:
+      matrix:
+        arch: [i686, x86_64]
+    
+    steps:
+      - name: Download cross-compiled executables
+        uses: actions/download-artifact@v4
+        with:
+          name: test-executables-${{ matrix.arch }}
+          path: test-binaries/
+      
+      - name: List downloaded files
+        shell: cmd
+        run: |
+          echo === Downloaded test executables ===
+          dir /s test-binaries
+      
+      - name: Test basic D3D8 link test
+        shell: cmd
+        continue-on-error: true
+        run: |
+          cd test-binaries
+          echo === Running main.exe (${{ matrix.arch }}) ===
+          main.exe
+          echo Exit code: %ERRORLEVEL%
+      
+      - name: Test d3d8thk suite (64-bit only)
+        if: matrix.arch == 'x86_64'
+        shell: cmd
+        run: |
+          cd test-binaries
+          
+          echo ============================================
+          echo Running d3d8thk test suite (cross-compiled)
+          echo ============================================
+          
+          echo.
+          echo [1/4] test_basic.exe
+          test_basic.exe > test_basic_cross.txt 2>&1
+          type test_basic_cross.txt
+          
+          echo.
+          echo [2/4] test_surface.exe
+          test_surface.exe > test_surface_cross.txt 2>&1
+          type test_surface_cross.txt
+          
+          echo.
+          echo [3/4] test_context.exe
+          test_context.exe > test_context_cross.txt 2>&1
+          type test_context_cross.txt
+          
+          echo.
+          echo [4/4] test_draw.exe
+          test_draw.exe > test_draw_cross.txt 2>&1
+          type test_draw_cross.txt
+      
+      - name: Upload cross-compiled test results
+        if: matrix.arch == 'x86_64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-compiled-test-results
+          path: test-binaries/*_cross.txt
+          retention-days: 30
+  
   # Native Windows testing
   windows-test:
-    name: Windows Native Test
+    name: Windows Native Build and Test
     runs-on: windows-latest
     needs: cross-compile-linux
     
@@ -338,7 +372,7 @@ jobs:
   report:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [cross-compile-linux, windows-test, analyze-results]
+    needs: [cross-compile-linux, test-cross-compiled, windows-test, analyze-results]
     if: always()
     
     steps:
@@ -351,6 +385,7 @@ jobs:
           echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Cross-compile (Linux) | ${{ needs.cross-compile-linux.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Cross-compiled (Windows) | ${{ needs.test-cross-compiled.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Windows Native Build | ${{ needs.windows-test.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -361,10 +396,19 @@ jobs:
           echo "- ✓ 64-bit (x86_64) compilation" >> $GITHUB_STEP_SUMMARY
           echo "- ✓ d3d8thk test suite compilation" >> $GITHUB_STEP_SUMMARY
           echo "- ✓ Symbol verification" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ Wine PE binary validation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "### Windows Native Testing" >> $GITHUB_STEP_SUMMARY
+          echo "### Cross-compiled Executables on Windows" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.test-cross-compiled.result }}" = "success" ]; then
+            echo "- ✓ Cross-compiled binaries executed on Windows" >> $GITHUB_STEP_SUMMARY
+            echo "- ✓ 32-bit and 64-bit executables tested" >> $GITHUB_STEP_SUMMARY
+            echo "- ✓ d3d8thk tests executed (64-bit)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ✗ Cross-compiled tests did not complete" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Windows Native Build and Test" >> $GITHUB_STEP_SUMMARY
           if [ "${{ needs.windows-test.result }}" = "success" ]; then
             echo "- ✓ Native compilation with MinGW-w64" >> $GITHUB_STEP_SUMMARY
             echo "- ✓ test_basic.exe executed" >> $GITHUB_STEP_SUMMARY
@@ -400,6 +444,7 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- **test-executables-i686**: 32-bit Windows executables" >> $GITHUB_STEP_SUMMARY
-          echo "- **test-executables-x86_64**: 64-bit Windows executables + d3d8thk tests" >> $GITHUB_STEP_SUMMARY
-          echo "- **windows-test-results**: Detailed test output from Windows run" >> $GITHUB_STEP_SUMMARY
+          echo "- **test-executables-i686**: 32-bit Windows executables (cross-compiled)" >> $GITHUB_STEP_SUMMARY
+          echo "- **test-executables-x86_64**: 64-bit Windows executables + d3d8thk tests (cross-compiled)" >> $GITHUB_STEP_SUMMARY
+          echo "- **cross-compiled-test-results**: Test output from cross-compiled binaries on Windows" >> $GITHUB_STEP_SUMMARY
+          echo "- **windows-test-results**: Test output from native Windows build" >> $GITHUB_STEP_SUMMARY
