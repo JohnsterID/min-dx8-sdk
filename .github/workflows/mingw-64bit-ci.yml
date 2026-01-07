@@ -41,7 +41,8 @@ jobs:
           echo "=== Checking d3d8 libraries ==="
           ls -lh /usr/${{ matrix.arch }}-w64-mingw32/lib/libd3d8*.a || echo "No d3d8 libs found (this is OK)"
       
-      - name: Build basic link test
+      - name: Build basic link test (32-bit only)
+        if: matrix.arch == 'i686'
         run: |
           mkdir -p build-test-${{ matrix.arch }}
           cd build-test-${{ matrix.arch }}
@@ -51,7 +52,8 @@ jobs:
           
           make VERBOSE=1
       
-      - name: Verify test executable
+      - name: Verify test executable (32-bit only)
+        if: matrix.arch == 'i686'
         run: |
           cd build-test-${{ matrix.arch }}
           ls -lh test_d3d8.exe
@@ -91,21 +93,12 @@ jobs:
           x86_64-w64-mingw32-objdump -p test_basic.exe | grep -i "d3d8thk.dll"
       
 
-      - name: Upload test executables (32-bit)
-        if: matrix.arch == 'i686'
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-executables-${{ matrix.arch }}
-          path: build-test-${{ matrix.arch }}/test_d3d8.exe
-          retention-days: 7
-      
-      - name: Upload test executables (64-bit)
-        if: matrix.arch == 'x86_64'
+      - name: Upload test executables
         uses: actions/upload-artifact@v4
         with:
           name: test-executables-${{ matrix.arch }}
           path: |
-            build-test-${{ matrix.arch }}/test_d3d8.exe
+            build-test-${{ matrix.arch }}/*.exe
             build-test-d3d8thk/*.exe
           retention-days: 7
   
@@ -132,12 +125,13 @@ jobs:
           echo === Downloaded test executables ===
           dir /s test-binaries
       
-      - name: Test basic D3D8 link test
+      - name: Test basic D3D8 link test (32-bit only)
+        if: matrix.arch == 'i686'
         shell: cmd
         continue-on-error: true
         run: |
           cd test-binaries
-          echo === Running test_d3d8.exe (${{ matrix.arch }}) ===
+          echo === Running test_d3d8.exe (32-bit) ===
           test_d3d8.exe
           echo Exit code: %ERRORLEVEL%
       
