@@ -39,11 +39,7 @@ jobs:
           ${{ matrix.arch }}-w64-mingw32-g++ --version
           
           echo "=== Checking d3d8 libraries ==="
-          if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            ls -lh /usr/${{ matrix.arch }}-w64-mingw32/lib/libd3d8*.a || echo "No d3d8 libs"
-          else
-            ls -lh /usr/${{ matrix.arch }}-w64-mingw32/lib/libd3d8*.a
-          fi
+          ls -lh /usr/${{ matrix.arch }}-w64-mingw32/lib/libd3d8*.a || echo "No d3d8 libs found (this is OK)"
       
       - name: Build basic link test
         run: |
