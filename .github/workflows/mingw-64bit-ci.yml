@@ -41,31 +41,36 @@ jobs:
           echo "=== Checking d3d8 libraries ==="
           ls -lh /usr/${{ matrix.arch }}-w64-mingw32/lib/libd3d8*.a || echo "No d3d8 libs found (this is OK)"
       
-      - name: Build basic link test (32-bit only)
+      - name: Build D3D8 standard API tests (32-bit only)
         if: matrix.arch == 'i686'
         run: |
-          mkdir -p build-test-${{ matrix.arch }}
-          cd build-test-${{ matrix.arch }}
+          mkdir -p build-test-d3d8-standard
+          cd build-test-d3d8-standard
           
-          cmake ../test_project \
+          echo "=== Building Standard D3D8 Test Suite (32-bit) ==="
+          cmake ../test_d3d8_standard \
             -DCMAKE_TOOLCHAIN_FILE=../test_project/toolchain-mingw-w64-${{ matrix.arch }}.cmake
           
           make VERBOSE=1
-      
-      - name: Verify test executable (32-bit only)
-        if: matrix.arch == 'i686'
-        run: |
-          cd build-test-${{ matrix.arch }}
-          ls -lh test_d3d8.exe
           
-          echo "=== Checking PE format ==="
-          file test_d3d8.exe
+          echo ""
+          echo "=== Verifying test executables ==="
+          ls -lh *.exe
           
-          echo "=== Checking DLL dependencies ==="
-          ${{ matrix.arch }}-w64-mingw32-objdump -p test_d3d8.exe | grep "DLL Name" || true
+          echo ""
+          echo "=== Checking test_basic.exe ==="
+          file test_basic.exe
+          ${{ matrix.arch }}-w64-mingw32-objdump -p test_basic.exe | grep "DLL Name" | grep -i d3d8
           
-          echo "=== Checking D3D8 symbols ==="
-          ${{ matrix.arch }}-w64-mingw32-nm test_d3d8.exe | grep -i direct3d || echo "Symbol check: OK"
+          echo ""
+          echo "=== Checking test_device.exe ==="
+          file test_device.exe
+          ${{ matrix.arch }}-w64-mingw32-objdump -p test_device.exe | grep "DLL Name" | grep -i d3d8
+          
+          echo ""
+          echo "=== Checking test_rendering.exe ==="
+          file test_rendering.exe
+          ${{ matrix.arch }}-w64-mingw32-objdump -p test_rendering.exe | grep "DLL Name" | grep -i d3d8
       
       - name: Build d3d8thk tests (64-bit only)
         if: matrix.arch == 'x86_64'
@@ -98,7 +103,7 @@ jobs:
         with:
           name: test-executables-${{ matrix.arch }}
           path: |
-            build-test-${{ matrix.arch }}/*.exe
+            build-test-d3d8-standard/*.exe
             build-test-d3d8thk/*.exe
           retention-days: 7
   
@@ -125,15 +130,39 @@ jobs:
           echo === Downloaded test executables ===
           dir /s test-binaries
       
-      - name: Test basic D3D8 link test (32-bit only)
+      - name: Test Standard D3D8 API suite (32-bit only)
         if: matrix.arch == 'i686'
         shell: cmd
         continue-on-error: true
         run: |
-          cd test-binaries\build-test-i686
-          echo === Running test_d3d8.exe (32-bit) ===
-          test_d3d8.exe
-          echo Exit code: %ERRORLEVEL%
+          cd test-binaries\build-test-d3d8-standard
+          
+          echo ============================================
+          echo Running Standard D3D8 Test Suite (32-bit)
+          echo ============================================
+          
+          echo.
+          echo [1/3] test_basic.exe
+          test_basic.exe > test_basic_standard.txt 2>&1
+          type test_basic_standard.txt
+          
+          echo.
+          echo [2/3] test_device.exe
+          test_device.exe > test_device_standard.txt 2>&1
+          type test_device_standard.txt
+          
+          echo.
+          echo [3/3] test_rendering.exe
+          test_rendering.exe > test_rendering_standard.txt 2>&1
+          type test_rendering_standard.txt
+      
+      - name: Upload standard D3D8 test results (32-bit only)
+        if: matrix.arch == 'i686'
+        uses: actions/upload-artifact@v4
+        with:
+          name: standard-d3d8-test-results
+          path: test-binaries/build-test-d3d8-standard/*_standard.txt
+          retention-days: 30
       
       - name: Test d3d8thk suite (64-bit only)
         if: matrix.arch == 'x86_64'
@@ -254,17 +283,32 @@ jobs:
           echo "## What Was Tested" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Cross-compilation (Linux → Windows)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ 32-bit (i686) compilation" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ 64-bit (x86_64) compilation" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ d3d8thk test suite compilation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ 32-bit (i686): Standard D3D8 API test suite" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ 64-bit (x86_64): d3d8thk wrapper test suite" >> $GITHUB_STEP_SUMMARY
           echo "- ✓ Symbol verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Test Suites" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**32-bit (i686) - Standard D3D8 API:**" >> $GITHUB_STEP_SUMMARY
+          echo "- test_basic.exe: Direct3DCreate8, adapter enumeration" >> $GITHUB_STEP_SUMMARY
+          echo "- test_device.exe: Device creation, capabilities" >> $GITHUB_STEP_SUMMARY
+          echo "- test_rendering.exe: BeginScene, Clear, Present" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**64-bit (x86_64) - d3d8thk Wrapper:**" >> $GITHUB_STEP_SUMMARY
+          echo "- test_basic.exe: DirectDraw object management" >> $GITHUB_STEP_SUMMARY
+          echo "- test_surface.exe: Surface operations" >> $GITHUB_STEP_SUMMARY
+          echo "- test_context.exe: D3D context lifecycle" >> $GITHUB_STEP_SUMMARY
+          echo "- test_draw.exe: Drawing primitives" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### Cross-compiled Executables on Windows" >> $GITHUB_STEP_SUMMARY
           if [ "${{ needs.test-cross-compiled.result }}" = "success" ]; then
-            echo "- ✓ Cross-compiled binaries executed on Windows" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ 32-bit and 64-bit executables tested" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ d3d8thk tests executed (64-bit)" >> $GITHUB_STEP_SUMMARY
+            echo "- ✓ Cross-compiled binaries executed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "- ✓ Standard D3D8 tests run (32-bit baseline)" >> $GITHUB_STEP_SUMMARY
+            echo "- ✓ d3d8thk tests run (64-bit comparison)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Purpose:** Compare 32-bit standard D3D8 with 64-bit d3d8thk to assess wrapper viability." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Note:** Tests may fail due to GPU driver limitations (expected on GitHub runners)." >> $GITHUB_STEP_SUMMARY
           else
@@ -293,6 +337,9 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- **test-executables-i686**: 32-bit Windows executables (cross-compiled)" >> $GITHUB_STEP_SUMMARY
-          echo "- **test-executables-x86_64**: 64-bit Windows executables + d3d8thk tests (cross-compiled)" >> $GITHUB_STEP_SUMMARY
-          echo "- **cross-compiled-test-results**: Test output from cross-compiled binaries on Windows" >> $GITHUB_STEP_SUMMARY
+          echo "- **test-executables-i686**: 32-bit standard D3D8 test suite (3 tests)" >> $GITHUB_STEP_SUMMARY
+          echo "- **test-executables-x86_64**: 64-bit d3d8thk test suite (4 tests)" >> $GITHUB_STEP_SUMMARY
+          echo "- **standard-d3d8-test-results**: Standard D3D8 test output (32-bit baseline)" >> $GITHUB_STEP_SUMMARY
+          echo "- **cross-compiled-test-results**: d3d8thk test output (64-bit comparison)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**For comparison analysis:** Download both result artifacts and compare behavior." >> $GITHUB_STEP_SUMMARY
