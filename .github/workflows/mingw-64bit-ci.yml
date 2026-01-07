@@ -91,7 +91,16 @@ jobs:
           x86_64-w64-mingw32-objdump -p test_basic.exe | grep -i "d3d8thk.dll"
       
 
-      - name: Upload test executables
+      - name: Upload test executables (32-bit)
+        if: matrix.arch == 'i686'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-executables-${{ matrix.arch }}
+          path: build-test-${{ matrix.arch }}/main.exe
+          retention-days: 7
+      
+      - name: Upload test executables (64-bit)
+        if: matrix.arch == 'x86_64'
         uses: actions/upload-artifact@v4
         with:
           name: test-executables-${{ matrix.arch }}
