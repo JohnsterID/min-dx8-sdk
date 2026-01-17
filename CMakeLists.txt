@@ -23,9 +23,15 @@ endif()
 # MinGW-specific configuration
 if(MINGW)
     # MinGW-w64 DirectX 8 support varies by architecture:
-    # i686 (32-bit): libd3d8.a + libd3dx8d.a (debug only, no release version)
+    # i686 (32-bit): libd3d8.a + custom libd3dx8.a (release, bundled in repository)
     # x86_64 (64-bit): libd3d8thk.a only (no libd3dx8 libraries at all)
-    target_link_libraries(d3d8lib INTERFACE d3dx8d)
+    #
+    # Note: MinGW-w64 only provides libd3dx8d.a (debug version) which references
+    # d3dx8d.dll. We provide a custom release import library that references
+    # d3dx8.dll (release) instead. This library was generated using dlltool from
+    # the function exports of libd3dx8d.a.
+    target_link_libraries(d3d8lib INTERFACE d3dx8)
+    target_link_directories(d3d8lib BEFORE INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
 target_compile_definitions(d3d8lib INTERFACE -DBUILD_WITH_D3D8)
